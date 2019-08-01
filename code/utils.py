@@ -6,7 +6,27 @@ import cPickle as pickle
 import gzip
 import logging
 from collections import Counter
+import os, glob
+from tqdm import tqdm
 
+def create_data(path_to_corpus, output_name):
+    '''
+        path_to_corpus : the directory to CNN/Daily Mail where stores, questions folder are located
+    '''
+    output_f = open(output_name, 'w')
+    for question_filename in tqdm(glob.glob(os.path.join(path_to_corpus, '*.question'))):
+        with open(question_filename, 'r') as q:
+            content = q.readlines()[2:] # skip urls and newline at the beginning
+            document = content[0]
+            question = content[2]
+            answer = content[4]
+
+            output_f.write(question)
+            output_f.write(answer)
+            output_f.write(document)
+            output_f.write('\n')
+
+    output_f.close()
 
 def load_data(in_file, max_example=None, relabeling=True):
     """
@@ -56,7 +76,7 @@ def load_data(in_file, max_example=None, relabeling=True):
             break
     f.close()
     logging.info('#Examples: %d' % len(documents))
-    return (documents, questions, answers)
+    return documents, questions, answers
 
 
 def build_dict(sentences, max_words=50000):
@@ -82,7 +102,7 @@ def build_dict(sentences, max_words=50000):
     return {w[0]: index + 2 for (index, w) in enumerate(ls)}
 
 
-def vectorize(examples, word_dict, entity_dict,
+def vectorize(examples, word_dict, entity_dict, args,
               sort_by_len=True, verbose=True):
     """
         Vectorize `examples`.
@@ -92,8 +112,9 @@ def vectorize(examples, word_dict, entity_dict,
     """
     in_x1 = []
     in_x2 = []
-    in_l = np.zeros((len(examples[0]), len(entity_dict))).astype(config._floatX)
+    in_l = np.zeros((len(examples[0]), args.num_labels)).astype(config._floatX)
     in_y = []
+    # document, question, answer
     for idx, (d, q, a) in enumerate(zip(examples[0], examples[1], examples[2])):
         d_words = d.split(' ')
         q_words = q.split(' ')

@@ -137,34 +137,36 @@ def eval_acc(test_fn, all_examples):
         n_examples += len(x1)
     return acc * 100.0 / n_examples
 
-
 def main(args):
     logging.info('-' * 50)
     logging.info('Load data files..')
 
     if args.debug:
         logging.info('*' * 10 + ' Train')
-        train_examples = utils.load_data(args.train_file, 100, relabeling=args.relabeling)
+        documents, questions, answers = utils.load_data(args.train_file, 100, relabeling=args.relabeling)
         logging.info('*' * 10 + ' Dev')
         dev_examples = utils.load_data(args.dev_file, 100, relabeling=args.relabeling)
     else:
         logging.info('*' * 10 + ' Train')
-        train_examples = utils.load_data(args.train_file, relabeling=args.relabeling)
+        documents, questions, answers = utils.load_data(args.train_file, relabeling=args.relabeling)
         logging.info('*' * 10 + ' Dev')
         dev_examples = utils.load_data(args.dev_file, args.max_dev, relabeling=args.relabeling)
 
-    args.num_train = len(train_examples[0])
+    args.num_train = len(documents)
     args.num_dev = len(dev_examples[0])
 
     logging.info('-' * 50)
     logging.info('Build dictionary..')
-    word_dict = utils.build_dict(train_examples[0] + train_examples[1])
+    word_dict = utils.build_dict(documents + questions)
     entity_markers = list(set([w for w in word_dict.keys()
-                              if w.startswith('@entity')] + train_examples[2]))
+                              if w.startswith('@entity')] + answers))
     entity_markers = ['<unk_entity>'] + entity_markers
     entity_dict = {w: index for (index, w) in enumerate(entity_markers)}
     logging.info('Entity markers: %d' % len(entity_dict))
-    args.num_labels = len(entity_dict)
+    if args.pre_trained:
+        args.num_labels = 328
+    else:
+        args.num_labels = len(entity_dict)
 
     logging.info('-' * 50)
     # Load embedding file
@@ -197,7 +199,7 @@ def main(args):
     # Training
     logging.info('-' * 50)
     logging.info('Start training..')
-    train_x1, train_x2, train_l, train_y = utils.vectorize(train_examples, word_dict, entity_dict)
+    train_x1, train_x2, train_l, train_y = utils.vectorize((documents, questions, answers), word_dict, entity_dict)
     assert len(train_x1) == args.num_train
     start_time = time.time()
     n_updates = 0
@@ -231,7 +233,12 @@ def main(args):
 
 
 from collections import namedtuple
-def qa_model(debug=False, test_only=False, prepare_model=False, random_seed=1013, train_file=None, dev_file=None, pre_trained=None, model_file='model.pkl.gz', log_file=None, embedding_file=None, max_dev=None, relabeling=True, embedding_size=None, hidden_size=128, bidir=True, num_layers=1, rnn_type='gru', att_func='bilinear', batch_size=32, num_epoches=100, eval_iter=100, dropout_rate=0.2, optimizer='sgd', learning_rate=0.1, grad_clipping=10.0):
+def qa_model(debug=False, test_only=False, prepare_model=False, 
+    random_seed=1013, train_file=None, dev_file=None, pre_trained=None, model_file='model.pkl.gz', 
+    log_file=None, embedding_file=None, max_dev=None, relabeling=True, 
+    embedding_size=None, hidden_size=128, bidir=True, num_layers=1, rnn_type='gru', 
+    att_func='bilinear', batch_size=32, num_epoches=100, eval_iter=100, dropout_rate=0.2, 
+    optimizer='sgd', learning_rate=0.1, grad_clipping=10.0):
 
     args = namedtuple("args", "debug, test_only, prepare_model, random_seed, train_file, dev_file, pre_trained, model_file, log_file, embedding_file, max_dev, relabeling, embedding_size, hidden_size, bidir, num_layers, rnn_type, att_func, batch_size, num_epoches, eval_iter, dropout_rate, optimizer, learning_rate, grad_clipping")
     args.debug = debug
@@ -304,3 +311,46 @@ def test(args, word_dict, entity_dict, train_fn, test_fn, params):
     all_dev = gen_examples(dev_x1, dev_x2, dev_l, dev_y, args.batch_size)
     dev_acc = eval_acc(test_fn, all_dev)
     return dev_acc
+
+
+def test_model(debug=False, test_only=False, prepare_model=False, 
+    random_seed=1013, train_file=None, dev_file=None, pre_trained=None, model_file='model.pkl.gz', 
+    log_file=None, embedding_file=None, max_dev=None, relabeling=True, 
+    embedding_size=None, hidden_size=128, bidir=True, num_layers=1, rnn_type='gru', 
+    att_func='bilinear', batch_size=32, num_epoches=100, eval_iter=100, dropout_rate=0.2, 
+    optimizer='sgd', learning_rate=0.1, grad_clipping=10.0):
+    args = namedtuple("args", "debug, test_only, prepare_model, random_seed, train_file, dev_file, pre_trained, model_file, log_file, embedding_file, max_dev, relabeling, embedding_size, hidden_size, bidir, num_layers, rnn_type, att_func, batch_size, num_epoches, eval_iter, dropout_rate, optimizer, learning_rate, grad_clipping")
+    args.debug = debug
+    args.test_only = test_only
+    args.prepare_model = prepare_model
+    args.random_seed = random_seed
+    args.train_file = train_file
+    args.dev_file = dev_file
+    args.pre_trained = pre_trained
+    args.model_file = model_file
+    args.log_file = log_file
+    args.embedding_file = embedding_file
+    args.max_dev = max_dev
+    args.relabeling = relabeling
+    args.embedding_size = embedding_size
+    args.hidden_size = hidden_size
+    args.bidir = bidir
+    args.num_layers = num_layers
+    args.rnn_type = rnn_type
+    args.att_func = att_func
+    args.batch_size = batch_size
+    args.num_epoches = num_epoches
+    args.eval_iter = eval_iter
+    args.dropout_rate = dropout_rate
+    args.optimizer = optimizer
+    args.learning_rate = learning_rate
+    args.grad_clipping = grad_clipping
+    if args.rnn_type == 'lstm':
+        args.rnn_layer = lasagne.layers.LSTMLayer
+    elif args.rnn_type == 'gru':
+        args.rnn_layer = lasagne.layers.GRULayer
+    args.embedding_size = 100
+    args.vocab_size = 50002
+    args.num_labels = 328
+    embeddings = np.zeros((50002, 100))
+    return build_fn(args, embeddings)

@@ -35,7 +35,7 @@ args, word_dict, entity_dict, train_fn, test_fn, params = qa_model.qa_model(trai
 
 
 def eval_acc(data):
-    dev_x1, dev_x2, dev_l, dev_y = utils.vectorize(data, word_dict, entity_dict)
+    dev_x1, dev_x2, dev_l, dev_y = utils.vectorize(data, word_dict, entity_dict, args)
     all_dev = qa_model.gen_examples(dev_x1, dev_x2, dev_l, dev_y, args.batch_size)
     dev_acc = qa_model.eval_acc(test_fn, all_dev)
     return dev_acc
@@ -50,16 +50,15 @@ print "*****************************Started answering to questions**************
 while(True):
     while(not os.path.isfile(query_path)):
         sleep(0.2)
-    try:
-        data = read_pickle(query_path)
-        reward = eval_acc(data[:-1])
-        os.remove(query_path)
-        rewards_file = open(rewards_path, 'w')
-        rewards_file.write(str(reward))
-        rewards_file.close()
-    except Exception:
-        print(query_path)
-        print(data)
-        print(reward)
-        print(str(reward))
+    data = read_pickle(query_path)
+    reward = eval_acc(data[:-1])
+    os.remove(query_path)
+    rewards_file = open(rewards_path, 'w')
+    rewards_file.write(str(reward))
+    rewards_file.close()
+    # except Exception:
+    #     print(query_path)
+    #     print(data)
+    #     print(reward)
+    #     print(str(reward))
 
